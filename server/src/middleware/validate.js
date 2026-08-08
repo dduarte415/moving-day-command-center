@@ -9,7 +9,14 @@ export function validate(schema, property = 'body') {
     if (!result.success) {
       throw new ApiError(400, 'Validation failed', result.error.flatten());
     }
-    req[property] = result.data;
+    if (property === 'query') {
+      // Express 5's req.query is a getter with no setter — mutate in place
+      // instead of reassigning.
+      for (const key of Object.keys(req.query)) delete req.query[key];
+      Object.assign(req.query, result.data);
+    } else {
+      req[property] = result.data;
+    }
     next();
   };
 }
