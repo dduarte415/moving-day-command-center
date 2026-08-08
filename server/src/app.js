@@ -4,6 +4,7 @@ import helmet from 'helmet';
 import { rateLimit } from 'express-rate-limit';
 import { env } from './config/env.js';
 import { notFoundHandler, errorHandler } from './middleware/errorHandler.js';
+import { movesRouter } from './routes/moves.js';
 
 export function createApp() {
   const app = express();
@@ -35,6 +36,7 @@ export function createApp() {
 
   // Feature routers are mounted here as they're built (moves, tasks,
   // budget-items, provider-lookup) — always before the 404 catch-all below.
+  app.use('/api/moves', movesRouter);
 
   app.use('/api', notFoundHandler);
   app.use(errorHandler);
