@@ -15,6 +15,8 @@ model Move {
   oldAddress  String   @map("old_address")
   newAddress  String   @map("new_address")
   moveDate    DateTime @map("move_date") @db.Date
+  // Optional — the budget tracker shows a progress bar against this cap when set.
+  budgetCap   Decimal? @map("budget_cap") @db.Decimal(10, 2)
   createdAt   DateTime @default(now()) @map("created_at")
 
   tasks       Task[]

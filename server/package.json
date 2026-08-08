@@ -8,7 +8,7 @@
     "dev": "node --watch src/index.js",
     "start": "node src/index.js",
     "prisma:generate": "prisma generate",
-    "prisma:migrate": "prisma migrate dev",
+    "prisma:migrate": "prisma migrate dev && prisma generate",
     "prisma:deploy": "prisma migrate deploy",
     "prisma:seed": "node prisma/seed.js",
     "test": "vitest run"
