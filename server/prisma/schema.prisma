@@ -1,0 +1,81 @@
+// Prisma schema for Moving Day Command Center.
+// Postgres everywhere (local dev + production) to avoid dialect drift.
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Move {
+  id          String   @id @default(uuid())
+  oldAddress  String   @map("old_address")
+  newAddress  String   @map("new_address")
+  moveDate    DateTime @map("move_date") @db.Date
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  tasks       Task[]
+  budgetItems BudgetItem[]
+
+  @@map("moves")
+}
+
+enum TaskCategory {
+  BEFORE_MOVE
+  MOVING_DAY
+  AFTER_MOVE
+}
+
+model Task {
+  id         String       @id @default(uuid())
+  moveId     String       @map("move_id")
+  title      String
+  category   TaskCategory
+  dueDate    DateTime?    @map("due_date") @db.Date
+  isComplete Boolean      @default(false) @map("is_complete")
+  createdAt  DateTime     @default(now()) @map("created_at")
+
+  move Move @relation(fields: [moveId], references: [id], onDelete: Cascade)
+
+  @@index([moveId])
+  @@map("tasks")
+}
+
+enum BudgetCategory {
+  DEPOSIT
+  MOVERS
+  FURNITURE
+  SUPPLIES
+  OTHER
+}
+
+model BudgetItem {
+  id        String         @id @default(uuid())
+  moveId    String         @map("move_id")
+  label     String
+  category  BudgetCategory
+  amount    Decimal        @db.Decimal(10, 2)
+  isPaid    Boolean        @default(false) @map("is_paid")
+  createdAt DateTime       @default(now()) @map("created_at")
+
+  move Move @relation(fields: [moveId], references: [id], onDelete: Cascade)
+
+  @@index([moveId])
+  @@map("budget_items")
+}
+
+// Cache of FCC provider-lookup results, keyed by a hash of the normalized
+// ZIP or address so repeat lookups (and upstream outages) don't require a
+// live call. See src/services/providerLookup.js for the read-through logic.
+model ProviderLookup {
+  id             String   @id @default(uuid())
+  zipOrAddrHash  String   @unique @map("zip_or_address_hash")
+  query          String // original normalized query, for debugging/inspection
+  providersJson  Json     @map("providers_json")
+  fetchedAt      DateTime @default(now()) @map("fetched_at")
+
+  @@map("provider_lookups")
+}
