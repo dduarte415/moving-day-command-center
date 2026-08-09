@@ -7,6 +7,7 @@ import { notFoundHandler, errorHandler } from './middleware/errorHandler.js';
 import { movesRouter } from './routes/moves.js';
 import { tasksRouter } from './routes/tasks.js';
 import { budgetItemsRouter } from './routes/budgetItems.js';
+import { providerLookupRouter } from './routes/providerLookup.js';
 
 export function createApp() {
   const app = express();
@@ -41,6 +42,7 @@ export function createApp() {
   app.use('/api/moves', movesRouter);
   app.use('/api/tasks', tasksRouter);
   app.use('/api/budget-items', budgetItemsRouter);
+  app.use('/api/provider-lookup', providerLookupRouter);
 
   app.use('/api', notFoundHandler);
   app.use(errorHandler);
