@@ -119,6 +119,23 @@ cd server && npm test      # vitest — default-task date math, budget totals
 3. Restart the backend — `getProviderDataSource()` picks up real credentials
    automatically and stops using the mock source.
 
+## Deployment
+
+Deploys as three Render services from a single [`render.yaml`](render.yaml)
+blueprint: the Express API (web service), the built React app (static site),
+and a managed Postgres instance.
+
+1. Push this repo to GitHub.
+2. In the Render dashboard: **New → Blueprint**, point it at the repo. Render
+   reads `render.yaml` and provisions all three services.
+3. After the first deploy, set `BDC_API_USERNAME` / `BDC_API_TOKEN` on the
+   `moving-day-api` service's Environment tab if you have them (optional —
+   the app runs fine without them, see above).
+4. `CORS_ORIGIN` and `VITE_API_BASE_URL` in `render.yaml` assume the default
+   service names (`moving-day-api` / `moving-day-app`); update both if you
+   rename a service, since Render service URLs are name-derived
+   (`https://<service-name>.onrender.com`).
+
 ## Security & engineering decisions
 
 | # | Requirement | What was actually done |
