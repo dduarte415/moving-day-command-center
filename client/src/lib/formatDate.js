@@ -39,18 +39,27 @@ export function formatCountdown(isoString) {
 }
 
 // Display-only normalization — "456 oakland ave" -> "456 Oakland Ave". Never
-// mutates what's stored, just how it's shown; keeps common directionals
-// (NW/SE/...) upper-case instead of title-casing them into "Nw"/"Se".
-const DIRECTIONALS = new Set(['N', 'S', 'E', 'W', 'NE', 'NW', 'SE', 'SW']);
+// mutates what's stored, just how it's shown. An explicit allow-list (not
+// "any 2-letter word") stays upper-cased — directionals and US state codes
+// read wrong as "Nw"/"Dc", but plenty of legitimate street suffixes are
+// also exactly two letters (Rd, St, Ln, Ct) and must NOT be forced upper.
+const KEEP_UPPERCASE = new Set([
+  'N', 'S', 'E', 'W', 'NE', 'NW', 'SE', 'SW',
+  'AL', 'AK', 'AZ', 'AR', 'CA', 'CO', 'CT', 'DE', 'FL', 'GA', 'HI', 'ID',
+  'IL', 'IN', 'IA', 'KS', 'KY', 'LA', 'ME', 'MD', 'MA', 'MI', 'MN', 'MS',
+  'MO', 'MT', 'NE', 'NV', 'NH', 'NJ', 'NM', 'NY', 'NC', 'ND', 'OH', 'OK',
+  'OR', 'PA', 'RI', 'SC', 'SD', 'TN', 'TX', 'UT', 'VT', 'VA', 'WA', 'WV',
+  'WI', 'WY', 'DC', 'PR',
+]);
 
 export function titleCaseAddress(address) {
   if (!address) return '';
   return address
     .split(' ')
     .map((word) => {
-      const bare = word.replace(/[.,]/g, '');
-      if (DIRECTIONALS.has(bare.toUpperCase())) return word.toUpperCase();
       if (!word) return word;
+      const bare = word.replace(/[.,]/g, '');
+      if (KEEP_UPPERCASE.has(bare.toUpperCase())) return word.toUpperCase();
       return word[0].toUpperCase() + word.slice(1).toLowerCase();
     })
     .join(' ');
