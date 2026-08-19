@@ -12,8 +12,16 @@ export default function RequireMove({ children }) {
   if (status === 'error') {
     return <ErrorState message={error ?? 'Could not load moves'} onRetry={refetchMoves} />;
   }
-  if (moves.length === 0 || !activeMoveId) {
+  if (moves.length === 0) {
     return <Navigate to="/moves" replace />;
+  }
+  if (!activeMoveId) {
+    // Moves exist but MoveProvider hasn't finished auto-selecting one yet —
+    // a one-tick gap right after `status` flips to 'ready'. Treat it as
+    // still loading rather than redirecting, or a fresh session landing
+    // directly on /checklist would bounce to /moves before ever settling
+    // on the move it just picked.
+    return <Loading label="Loading your move…" />;
   }
   return children;
 }
