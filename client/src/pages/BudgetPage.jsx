@@ -2,10 +2,12 @@ import { useCallback, useEffect, useState } from 'react';
 import { api } from '../lib/apiClient';
 import { useMoveContext } from '../context/MoveContext';
 import { Loading, ErrorState, EmptyState } from '../components/StatusStates';
+import RowMenu from '../components/RowMenu';
 
 const CATEGORIES = ['DEPOSIT', 'MOVERS', 'FURNITURE', 'SUPPLIES', 'OTHER'];
 
-const currency = (n) => `$${Number(n).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+const currency = (n) =>
+  `$${Number(n).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 export default function BudgetPage() {
   const { activeMoveId } = useMoveContext();
@@ -68,6 +70,7 @@ export default function BudgetPage() {
   }
 
   async function handleDelete(itemId) {
+    if (!window.confirm('Delete this budget item? This cannot be undone.')) return;
     try {
       const { summary: newSummary } = await api.delete(`/api/budget-items/${itemId}`);
       setItems((prev) => prev.filter((i) => i.id !== itemId));
@@ -80,31 +83,34 @@ export default function BudgetPage() {
   if (status === 'loading') return <Loading label="Loading budget…" />;
   if (status === 'error') return <ErrorState message={error} onRetry={load} />;
 
-  const capExceeded = summary?.budgetCap != null && summary.total > summary.budgetCap;
-  const progressPct = summary?.budgetCap
-    ? Math.min(100, (summary.total / summary.budgetCap) * 100)
-    : null;
+  const hasCap = summary?.budgetCap != null;
+  const capExceeded = hasCap && summary.total > summary.budgetCap;
+  const progressPct = hasCap ? Math.min(100, (summary.total / summary.budgetCap) * 100) : null;
 
   return (
     <div className="space-y-6">
       {summary && (
         <section className="rounded-lg border border-slate-200 bg-white p-5">
-          <div className="flex flex-wrap items-baseline justify-between gap-2">
-            <div>
-              <p className="text-2xl font-semibold text-slate-800">{currency(summary.total)}</p>
-              <p className="text-sm text-slate-500">
-                {currency(summary.paidTotal)} paid · {currency(summary.unpaidTotal)} remaining
-              </p>
-            </div>
-            {summary.budgetCap != null && (
-              <p className={`text-sm font-medium ${capExceeded ? 'text-red-600' : 'text-slate-500'}`}>
-                Budget cap: {currency(summary.budgetCap)}
-                {capExceeded && ' · over budget'}
-              </p>
-            )}
-          </div>
+          {hasCap ? (
+            <p className="text-sm text-slate-600">
+              <span className="text-lg font-semibold text-slate-900">{currency(summary.total)}</span>
+              {' spent of '}
+              <span className="font-medium text-slate-800">{currency(summary.budgetCap)}</span>
+              {' · '}
+              <span className={capExceeded ? 'font-medium text-red-600' : ''}>
+                {capExceeded
+                  ? `${currency(summary.total - summary.budgetCap)} over budget`
+                  : `${currency(summary.budgetCap - summary.total)} remaining`}
+              </span>
+            </p>
+          ) : (
+            <p className="text-lg font-semibold text-slate-900">{currency(summary.total)} spent</p>
+          )}
+          <p className="mt-0.5 text-xs text-slate-400">
+            {currency(summary.paidTotal)} paid · {currency(summary.unpaidTotal)} unpaid
+          </p>
           {progressPct != null && (
-            <div className="mt-3 h-2 w-full overflow-hidden rounded-full bg-slate-100">
+            <div className="mt-3 h-1.5 w-full overflow-hidden rounded-full bg-slate-100">
               <div
                 className={`h-full rounded-full ${capExceeded ? 'bg-red-500' : 'bg-brand-500'}`}
                 style={{ width: `${progressPct}%` }}
@@ -173,33 +179,28 @@ export default function BudgetPage() {
       {items.length === 0 ? (
         <EmptyState title="No budget items yet" description="Add your first line item above." />
       ) : (
-        <ul className="divide-y divide-slate-200 rounded-lg border border-slate-200 bg-white">
+        <ul className="divide-y divide-slate-100 rounded-lg border border-slate-200 bg-white">
           {items.map((item) => (
-            <li key={item.id} className="flex items-center justify-between gap-3 px-4 py-3">
-              <div className="flex items-center gap-3">
-                <input
-                  type="checkbox"
-                  checked={item.isPaid}
-                  onChange={() => togglePaid(item)}
-                  className="h-4 w-4 accent-brand-600"
-                  aria-label="Paid"
-                />
-                <div>
-                  <p className="font-medium text-slate-800">{item.label}</p>
-                  <p className="text-xs text-slate-500">{item.category.charAt(0) + item.category.slice(1).toLowerCase()}</p>
-                </div>
+            <li key={item.id} className="flex items-center gap-3 px-4 py-3">
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-medium text-slate-800">{item.label}</p>
+                <p className="text-xs text-slate-400">
+                  {item.category.charAt(0) + item.category.slice(1).toLowerCase()}
+                </p>
               </div>
-              <div className="flex items-center gap-3">
-                <span className="font-medium text-slate-700">{currency(item.amount)}</span>
-                <button
-                  type="button"
-                  onClick={() => handleDelete(item.id)}
-                  className="text-slate-300 hover:text-red-500"
-                  aria-label="Delete item"
-                >
-                  ✕
-                </button>
-              </div>
+              <span className="shrink-0 text-sm font-medium text-slate-700">{currency(item.amount)}</span>
+              <button
+                type="button"
+                onClick={() => togglePaid(item)}
+                className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-medium transition-colors ${
+                  item.isPaid
+                    ? 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
+                    : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
+                }`}
+              >
+                {item.isPaid ? 'Paid ✓' : 'Unpaid'}
+              </button>
+              <RowMenu actions={[{ label: 'Delete', danger: true, onClick: () => handleDelete(item.id) }]} />
             </li>
           ))}
         </ul>

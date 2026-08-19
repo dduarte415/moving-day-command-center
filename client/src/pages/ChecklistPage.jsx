@@ -2,7 +2,8 @@ import { useCallback, useEffect, useState } from 'react';
 import { api } from '../lib/apiClient';
 import { useMoveContext } from '../context/MoveContext';
 import { Loading, ErrorState, EmptyState } from '../components/StatusStates';
-import { formatDate } from '../lib/formatDate';
+import { formatDateShort } from '../lib/formatDate';
+import RowMenu from '../components/RowMenu';
 
 const CATEGORIES = [
   { key: 'BEFORE_MOVE', label: 'Before Move' },
@@ -15,7 +16,10 @@ export default function ChecklistPage() {
   const [tasks, setTasks] = useState([]);
   const [status, setStatus] = useState('loading');
   const [error, setError] = useState(null);
-  const [form, setForm] = useState({ title: '', category: 'BEFORE_MOVE', dueDate: '' });
+  const [title, setTitle] = useState('');
+  const [showDetails, setShowDetails] = useState(false);
+  const [category, setCategory] = useState('BEFORE_MOVE');
+  const [dueDate, setDueDate] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
   const load = useCallback(async () => {
@@ -35,7 +39,6 @@ export default function ChecklistPage() {
   }, [load]);
 
   async function toggleComplete(task) {
-    // Optimistic update, reconciled by the PATCH response.
     setTasks((prev) => prev.map((t) => (t.id === task.id ? { ...t, isComplete: !t.isComplete } : t)));
     try {
       await api.patch(`/api/tasks/${task.id}`, { isComplete: !task.isComplete });
@@ -56,17 +59,19 @@ export default function ChecklistPage() {
 
   async function handleSubmit(e) {
     e.preventDefault();
-    if (submitting) return;
+    if (submitting || !title.trim()) return;
     setSubmitting(true);
     try {
       const task = await api.post('/api/tasks', {
         moveId: activeMoveId,
-        title: form.title,
-        category: form.category,
-        dueDate: form.dueDate || null,
+        title,
+        category,
+        dueDate: dueDate || null,
       });
       setTasks((prev) => [...prev, task]);
-      setForm({ title: '', category: 'BEFORE_MOVE', dueDate: '' });
+      setTitle('');
+      setDueDate('');
+      setShowDetails(false);
     } catch (err) {
       window.alert(err.message);
     } finally {
@@ -77,100 +82,134 @@ export default function ChecklistPage() {
   if (status === 'loading') return <Loading label="Loading checklist…" />;
   if (status === 'error') return <ErrorState message={error} onRetry={load} />;
 
+  const completeCount = tasks.filter((t) => t.isComplete).length;
+  const sections = CATEGORIES.map((c) => ({
+    ...c,
+    items: tasks
+      .filter((t) => t.category === c.key)
+      .sort((a, b) => new Date(a.dueDate ?? 0) - new Date(b.dueDate ?? 0)),
+  })).filter((c) => c.items.length > 0);
+
   return (
     <div className="space-y-6">
-      <form onSubmit={handleSubmit} className="flex flex-wrap items-end gap-3 rounded-lg border border-slate-200 bg-white p-4">
-        <label className="flex flex-1 min-w-48 flex-col gap-1 text-sm">
-          <span className="font-medium text-slate-700">New task</span>
+      <form onSubmit={handleSubmit} className="rounded-lg border border-slate-200 bg-white p-4">
+        <div className="flex items-center gap-2">
           <input
-            required
-            value={form.title}
-            onChange={(e) => setForm({ ...form, title: e.target.value })}
-            className="rounded-md border border-slate-300 px-3 py-2"
-            placeholder="e.g. Cancel gym membership"
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            className="flex-1 rounded-md border border-slate-300 px-3 py-2 text-sm"
+            placeholder="What needs to get done?"
           />
-        </label>
-        <label className="flex flex-col gap-1 text-sm">
-          <span className="font-medium text-slate-700">Category</span>
-          <select
-            value={form.category}
-            onChange={(e) => setForm({ ...form, category: e.target.value })}
-            className="rounded-md border border-slate-300 px-3 py-2"
+          <button
+            type="submit"
+            disabled={submitting || !title.trim()}
+            className="shrink-0 rounded-md bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-700 disabled:opacity-50"
           >
-            {CATEGORIES.map((c) => (
-              <option key={c.key} value={c.key}>
-                {c.label}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="flex flex-col gap-1 text-sm">
-          <span className="font-medium text-slate-700">Due date</span>
-          <input
-            type="date"
-            value={form.dueDate}
-            onChange={(e) => setForm({ ...form, dueDate: e.target.value })}
-            className="rounded-md border border-slate-300 px-3 py-2"
-          />
-        </label>
-        <button
-          type="submit"
-          disabled={submitting}
-          className="rounded-md bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-700 disabled:opacity-50"
-        >
-          {submitting ? 'Adding…' : 'Add task'}
-        </button>
+            {submitting ? 'Adding…' : '+ Add'}
+          </button>
+        </div>
+
+        {!showDetails ? (
+          <button
+            type="button"
+            onClick={() => setShowDetails(true)}
+            className="mt-2 text-xs font-medium text-slate-400 hover:text-slate-600"
+          >
+            + Add details (category, due date)
+          </button>
+        ) : (
+          <div className="mt-3 flex flex-wrap gap-3 border-t border-slate-100 pt-3">
+            <label className="flex flex-col gap-1 text-xs">
+              <span className="font-medium text-slate-500">Category</span>
+              <select
+                value={category}
+                onChange={(e) => setCategory(e.target.value)}
+                className="rounded-md border border-slate-300 px-2 py-1.5 text-sm"
+              >
+                {CATEGORIES.map((c) => (
+                  <option key={c.key} value={c.key}>
+                    {c.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="flex flex-col gap-1 text-xs">
+              <span className="font-medium text-slate-500">Due date</span>
+              <input
+                type="date"
+                value={dueDate}
+                onChange={(e) => setDueDate(e.target.value)}
+                className="rounded-md border border-slate-300 px-2 py-1.5 text-sm"
+              />
+            </label>
+          </div>
+        )}
       </form>
 
-      <div className="grid gap-4 md:grid-cols-3">
-        {CATEGORIES.map((category) => {
-          const items = tasks
-            .filter((t) => t.category === category.key)
-            .sort((a, b) => new Date(a.dueDate ?? 0) - new Date(b.dueDate ?? 0));
-          return (
-            <div key={category.key} className="rounded-lg border border-slate-200 bg-white p-4">
-              <h3 className="mb-3 font-semibold text-slate-800">{category.label}</h3>
-              {items.length === 0 ? (
-                <p className="text-sm text-slate-400">No tasks yet</p>
-              ) : (
-                <ul className="space-y-2">
-                  {items.map((task) => (
-                    <li key={task.id} className="flex items-start gap-2 text-sm">
+      {tasks.length === 0 ? (
+        <EmptyState
+          title="Your checklist is empty"
+          description="Add your first task to start planning your move."
+        />
+      ) : (
+        <>
+          <div className="flex items-center gap-3">
+            <p className="text-sm font-medium text-slate-600">
+              {completeCount} / {tasks.length} tasks complete
+            </p>
+            <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-slate-100">
+              <div
+                className="h-full rounded-full bg-brand-500"
+                style={{ width: `${tasks.length ? (completeCount / tasks.length) * 100 : 0}%` }}
+              />
+            </div>
+          </div>
+
+          <div className="space-y-6">
+            {sections.map((section) => (
+              <div key={section.key}>
+                <div className="mb-1 flex items-baseline justify-between">
+                  <h3 className="font-semibold text-slate-800">{section.label}</h3>
+                  <span className="text-xs text-slate-400">
+                    {section.items.length} {section.items.length === 1 ? 'task' : 'tasks'}
+                  </span>
+                </div>
+                <ul className="divide-y divide-slate-100 rounded-lg border border-slate-200 bg-white">
+                  {section.items.map((task) => (
+                    <li
+                      key={task.id}
+                      onClick={() => toggleComplete(task)}
+                      className="flex cursor-pointer items-center gap-3 px-4 py-3 hover:bg-slate-50"
+                    >
                       <input
                         type="checkbox"
                         checked={task.isComplete}
                         onChange={() => toggleComplete(task)}
-                        className="mt-0.5 h-4 w-4 accent-brand-600"
+                        onClick={(e) => e.stopPropagation()}
+                        className="h-4 w-4 shrink-0 accent-brand-600"
                       />
-                      <div className="flex-1">
-                        <p className={task.isComplete ? 'text-slate-400 line-through' : 'text-slate-700'}>
-                          {task.title}
-                        </p>
-                        {task.dueDate && (
-                          <p className="text-xs text-slate-400">
-                            Due {formatDate(task.dueDate)}
-                          </p>
-                        )}
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => handleDelete(task.id)}
-                        className="text-slate-300 hover:text-red-500"
-                        aria-label="Delete task"
+                      <span
+                        className={`flex-1 text-sm ${
+                          task.isComplete ? 'text-slate-400 line-through' : 'text-slate-700'
+                        }`}
                       >
-                        ✕
-                      </button>
+                        {task.title}
+                      </span>
+                      {task.dueDate && (
+                        <span className="shrink-0 text-xs text-slate-400">
+                          {formatDateShort(task.dueDate)}
+                        </span>
+                      )}
+                      <div onClick={(e) => e.stopPropagation()}>
+                        <RowMenu actions={[{ label: 'Delete', danger: true, onClick: () => handleDelete(task.id) }]} />
+                      </div>
                     </li>
                   ))}
                 </ul>
-              )}
-            </div>
-          );
-        })}
-      </div>
-
-      {tasks.length === 0 && (
-        <EmptyState title="No tasks yet" description="Add your first task above." />
+              </div>
+            ))}
+          </div>
+        </>
       )}
     </div>
   );

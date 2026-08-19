@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { api, ApiError } from '../lib/apiClient';
 import { Loading, ErrorState, EmptyState } from '../components/StatusStates';
+import { titleCaseAddress } from '../lib/formatDate';
 
 const TECH_BADGE = {
   Fiber: 'bg-emerald-100 text-emerald-800',
@@ -95,7 +96,7 @@ export default function ProviderLookupPage() {
             </div>
           )}
           {result.matchedAddress && (
-            <p className="text-sm text-slate-500">Matched: {result.matchedAddress}</p>
+            <p className="text-sm text-slate-500">Matched: {titleCaseAddress(result.matchedAddress)}</p>
           )}
 
           {result.providers.length === 0 ? (
