@@ -39,9 +39,15 @@ export default function Layout() {
   const countdown = activeMove ? formatCountdown(activeMove.moveDate) : null;
 
   return (
-    <div className="flex min-h-screen">
+    <>
+      {/* Fixed, not a flex sibling: its height is the viewport regardless of
+          how tall the main content is, and it stays put on scroll. If it
+          were a normal-flow flex item stretched via min-h-screen instead,
+          short pages would get stretched to fill the viewport (a wall of
+          empty space below the content) and the nav would scroll out of
+          view on long pages. */}
       <aside
-        className={`flex shrink-0 flex-col border-r border-slate-200 bg-white transition-[width] duration-150 ${
+        className={`fixed inset-y-0 left-0 z-10 flex shrink-0 flex-col border-r border-slate-200 bg-white transition-[width] duration-150 ${
           collapsed ? 'w-[72px]' : 'w-64'
         }`}
       >
@@ -92,7 +98,7 @@ export default function Layout() {
         )}
       </aside>
 
-      <div className="flex-1">
+      <div className={`transition-[margin] duration-150 ${collapsed ? 'ml-[72px]' : 'ml-64'}`}>
         <main className="mx-auto max-w-[960px] px-6 py-6">
           {activeMove && (
             <div className="mb-6">
@@ -115,6 +121,6 @@ export default function Layout() {
           <Outlet />
         </main>
       </div>
-    </div>
+    </>
   );
 }

@@ -15,15 +15,24 @@ async function main() {
 
   const move = await prisma.move.create({
     data: {
-      oldAddress: '123 Old St, Springfield, IL 62701',
-      newAddress: '456 New Ave, Austin, TX 73301',
+      oldAddress: '6030 Sturgeon Lake Rd, Sacramento, CA 95828',
+      newAddress: '456 Oakland Ave, Novato, CA 94945',
       moveDate,
+      budgetCap: '3000.00',
       tasks: { create: buildDefaultTasksForMove(moveDate) },
+      budgetItems: {
+        create: [
+          { label: 'Moving truck rental', category: 'MOVERS', amount: '850.00', isPaid: false },
+          { label: 'Security deposit', category: 'DEPOSIT', amount: '500.00', isPaid: true },
+        ],
+      },
     },
-    include: { tasks: true },
+    include: { tasks: true, budgetItems: true },
   });
 
-  console.log(`Seeded move ${move.id} with ${move.tasks.length} default tasks.`);
+  console.log(
+    `Seeded move ${move.id} with ${move.tasks.length} default tasks and ${move.budgetItems.length} budget items.`
+  );
 }
 
 main()

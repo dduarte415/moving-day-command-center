@@ -103,7 +103,11 @@ export default function ChecklistPage() {
           <button
             type="submit"
             disabled={submitting || !title.trim()}
-            className="shrink-0 rounded-md bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-700 disabled:opacity-50"
+            className={`shrink-0 rounded-md px-4 py-2 text-sm font-medium transition-colors ${
+              submitting || !title.trim()
+                ? 'cursor-not-allowed bg-gray-200 text-gray-400'
+                : 'bg-brand-600 text-white hover:bg-brand-700'
+            }`}
           >
             {submitting ? 'Adding…' : '+ Add'}
           </button>
