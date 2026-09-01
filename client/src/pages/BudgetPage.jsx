@@ -1,8 +1,10 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { api } from '../lib/apiClient';
 import { useMoveContext } from '../context/MoveContext';
 import { Loading, ErrorState, EmptyState } from '../components/StatusStates';
 import RowMenu from '../components/RowMenu';
+import { BulbIcon, PlusIcon } from '../components/NavIcons';
+import { SUGGESTED_BUDGET_ITEMS, getBudgetTip } from '../lib/budgetSuggestions';
 
 const CATEGORIES = ['DEPOSIT', 'MOVERS', 'FURNITURE', 'SUPPLIES', 'OTHER'];
 
@@ -17,6 +19,7 @@ export default function BudgetPage() {
   const [error, setError] = useState(null);
   const [form, setForm] = useState({ label: '', category: 'MOVERS', amount: '', isPaid: false });
   const [submitting, setSubmitting] = useState(false);
+  const amountRef = useRef(null);
 
   const load = useCallback(async () => {
     setStatus('loading');
@@ -80,12 +83,20 @@ export default function BudgetPage() {
     }
   }
 
+  function applySuggestion(suggestion) {
+    setForm((prev) => ({ ...prev, label: suggestion.label, category: suggestion.category }));
+    amountRef.current?.focus();
+  }
+
   if (status === 'loading') return <Loading label="Loading budget…" />;
   if (status === 'error') return <ErrorState message={error} onRetry={load} />;
 
   const hasCap = summary?.budgetCap != null;
   const capExceeded = hasCap && summary.total > summary.budgetCap;
   const progressPct = hasCap ? Math.min(100, (summary.total / summary.budgetCap) * 100) : null;
+  const addedLabels = new Set(items.map((i) => i.label.toLowerCase()));
+  const suggestions = SUGGESTED_BUDGET_ITEMS.filter((s) => !addedLabels.has(s.label.toLowerCase())).slice(0, 4);
+  const tip = summary ? getBudgetTip({ items, summary }) : null;
 
   return (
     <div className="space-y-6">
@@ -117,7 +128,31 @@ export default function BudgetPage() {
               />
             </div>
           )}
+          {tip && (
+            <p className="mt-3 flex items-start gap-1.5 text-xs text-slate-500">
+              <BulbIcon className="h-4 w-4 shrink-0 text-brand-500" />
+              {tip}
+            </p>
+          )}
         </section>
+      )}
+
+      {suggestions.length > 0 && (
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-xs font-medium text-slate-400">Quick add:</span>
+          {suggestions.map((s) => (
+            <button
+              key={s.label}
+              type="button"
+              onClick={() => applySuggestion(s)}
+              title={s.hint ?? undefined}
+              className="flex items-center gap-1 rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-medium text-slate-600 hover:border-brand-300 hover:text-brand-700"
+            >
+              <PlusIcon className="h-3 w-3" />
+              {s.label}
+            </button>
+          ))}
+        </div>
       )}
 
       <form onSubmit={handleSubmit} className="flex flex-wrap items-end gap-3 rounded-lg border border-slate-200 bg-white p-4">
@@ -148,6 +183,7 @@ export default function BudgetPage() {
         <label className="flex flex-col gap-1 text-sm">
           <span className="font-medium text-slate-700">Amount</span>
           <input
+            ref={amountRef}
             required
             type="number"
             min="0"
@@ -170,7 +206,11 @@ export default function BudgetPage() {
         <button
           type="submit"
           disabled={submitting}
-          className="rounded-md bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-700 disabled:opacity-50"
+          className={`rounded-md px-4 py-2 text-sm font-medium transition-colors ${
+            submitting
+              ? 'cursor-not-allowed bg-gray-200 text-gray-400'
+              : 'bg-brand-600 text-white hover:bg-brand-700'
+          }`}
         >
           {submitting ? 'Adding…' : 'Add item'}
         </button>

@@ -57,3 +57,20 @@ export function DotsIcon(props) {
     </svg>
   );
 }
+
+export function BulbIcon(props) {
+  return (
+    <svg viewBox="0 0 24 24" className="h-5 w-5" {...common} {...props}>
+      <path d="M9 18h6M10 21h4" />
+      <path d="M12 3a6 6 0 0 0-3.5 10.9c.6.44 1 1.15 1 1.93V16h5v-.17c0-.78.4-1.49 1-1.93A6 6 0 0 0 12 3Z" />
+    </svg>
+  );
+}
+
+export function PlusIcon(props) {
+  return (
+    <svg viewBox="0 0 24 24" className="h-5 w-5" {...common} {...props}>
+      <path d="M12 5v14M5 12h14" />
+    </svg>
+  );
+}
