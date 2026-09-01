@@ -22,8 +22,10 @@ export default function AddressAutocompleteInput({
   const containerRef = useRef(null);
   const debounceRef = useRef(null);
   const skipNextFetch = useRef(false);
+  const latestValueRef = useRef(value); // guards against out-of-order responses, see below
 
   useEffect(() => {
+    latestValueRef.current = value;
     if (skipNextFetch.current) {
       skipNextFetch.current = false;
       return;
@@ -34,13 +36,20 @@ export default function AddressAutocompleteInput({
       setOpen(false);
       return;
     }
+    const queryValue = value;
     debounceRef.current = setTimeout(async () => {
       try {
-        const data = await api.get(`/api/address-autocomplete?q=${encodeURIComponent(value)}`);
+        const data = await api.get(`/api/address-autocomplete?q=${encodeURIComponent(queryValue)}`);
+        // A slower request for an earlier keystroke can resolve after a
+        // faster one for a later keystroke. Without this check, its (stale,
+        // often empty/irrelevant) results can clobber the correct ones
+        // already on screen — exactly the "nothing comes up" symptom.
+        if (latestValueRef.current !== queryValue) return;
         setSuggestions(data.suggestions ?? []);
         setOpen((data.suggestions ?? []).length > 0);
         setActiveIndex(-1);
       } catch {
+        if (latestValueRef.current !== queryValue) return;
         setSuggestions([]); // Fail quiet — never surface an error for a convenience feature.
       }
     }, DEBOUNCE_MS);
