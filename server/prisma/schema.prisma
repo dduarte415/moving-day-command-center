@@ -74,6 +74,20 @@ model BudgetItem {
   @@map("budget_items")
 }
 
+// Cache of nearby-places (Overpass/OSM) results, keyed by a hash of the
+// normalized address. Overpass is slow and rate-limited, so this cache is
+// what keeps the "Your new area" page usable — and it survives free-tier
+// dyno restarts, unlike an in-memory cache. See src/services/localPlaces.js.
+model PlaceLookup {
+  id          String   @id @default(uuid())
+  addressHash String   @unique @map("address_hash")
+  query       String
+  placesJson  Json     @map("places_json")
+  fetchedAt   DateTime @default(now()) @map("fetched_at")
+
+  @@map("place_lookups")
+}
+
 // Cache of FCC provider-lookup results, keyed by a hash of the normalized
 // ZIP or address so repeat lookups (and upstream outages) don't require a
 // live call. See src/services/providerLookup.js for the read-through logic.
