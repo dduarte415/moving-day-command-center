@@ -17,6 +17,11 @@ model Move {
   moveDate    DateTime @map("move_date") @db.Date
   // Optional — the budget tracker shows a progress bar against this cap when set.
   budgetCap   Decimal? @map("budget_cap") @db.Decimal(10, 2)
+  // Optional — power the "leftover after rent" tracker on the Budget page.
+  // Plain monthly figures; the year view is just these × 12, computed on
+  // read rather than stored (there's nothing to keep in sync).
+  monthlyIncome Decimal? @map("monthly_income") @db.Decimal(10, 2)
+  monthlyRent   Decimal? @map("monthly_rent") @db.Decimal(10, 2)
   createdAt   DateTime @default(now()) @map("created_at")
 
   tasks       Task[]

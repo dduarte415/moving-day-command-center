@@ -23,13 +23,15 @@ movesRouter.get('/:id', validate(idParamSchema, 'params'), async (req, res) => {
 // also seeds the default task checklist in the same transaction, so the
 // user never lands on an empty checklist.
 movesRouter.post('/', validate(createMoveSchema), async (req, res) => {
-  const { oldAddress, newAddress, moveDate, budgetCap } = req.body;
+  const { oldAddress, newAddress, moveDate, budgetCap, monthlyIncome, monthlyRent } = req.body;
   const move = await prisma.move.create({
     data: {
       oldAddress,
       newAddress,
       moveDate,
       budgetCap,
+      monthlyIncome,
+      monthlyRent,
       tasks: { create: buildDefaultTasksForMove(moveDate) },
     },
   });

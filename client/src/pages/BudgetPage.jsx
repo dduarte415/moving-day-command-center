@@ -5,6 +5,7 @@ import { Loading, ErrorState, EmptyState } from '../components/StatusStates';
 import RowMenu from '../components/RowMenu';
 import { BulbIcon, PlusIcon } from '../components/NavIcons';
 import { SUGGESTED_BUDGET_ITEMS, getBudgetTip } from '../lib/budgetSuggestions';
+import LeftoverTracker from '../components/LeftoverTracker';
 
 const CATEGORIES = ['DEPOSIT', 'MOVERS', 'FURNITURE', 'SUPPLIES', 'OTHER'];
 
@@ -12,7 +13,7 @@ const currency = (n) =>
   `$${Number(n).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 export default function BudgetPage() {
-  const { activeMoveId } = useMoveContext();
+  const { activeMoveId, activeMove, refetchMoves } = useMoveContext();
   const [items, setItems] = useState([]);
   const [summary, setSummary] = useState(null);
   const [status, setStatus] = useState('loading');
@@ -135,6 +136,14 @@ export default function BudgetPage() {
             </p>
           )}
         </section>
+      )}
+
+      {activeMove && (
+        <LeftoverTracker
+          move={activeMove}
+          onSaved={refetchMoves}
+          movingCostsUnpaid={summary?.unpaidTotal ?? 0}
+        />
       )}
 
       {suggestions.length > 0 && (
