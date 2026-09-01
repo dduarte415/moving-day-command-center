@@ -6,8 +6,9 @@
 // caching of results — both handled here, on top of this route's own
 // rate limiter (see routes/addressAutocomplete.js).
 
+import { OUTBOUND_USER_AGENT } from '../lib/userAgent.js';
+
 const NOMINATIM_URL = 'https://nominatim.openstreetmap.org/search';
-const USER_AGENT = 'moving-day-command-center (portfolio project; contact via GitHub)';
 
 const CACHE_TTL_MS = 10 * 60 * 1000;
 const cache = new Map(); // normalized query -> { suggestions, expiresAt }
@@ -46,7 +47,7 @@ export async function suggestAddresses(query) {
   let response;
   try {
     response = await fetch(url, {
-      headers: { 'User-Agent': USER_AGENT },
+      headers: { 'User-Agent': OUTBOUND_USER_AGENT },
       signal: AbortSignal.timeout(5000),
     });
   } catch {

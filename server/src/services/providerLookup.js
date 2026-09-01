@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import { prisma } from '../lib/prisma.js';
-import { geocodeAddress, GeocodingError } from './geocoding.js';
+import { resolveApproximateLocation } from './geocoding.js';
 import { getProviderDataSource, ProviderUnavailableError } from './providerDataSource.js';
 
 // How long a cached result is considered fresh before we prefer a live
@@ -26,15 +26,12 @@ async function resolveLocation(query) {
     return { zip: query.value, matchedAddress: null, blockFips: null };
   }
 
-  let geo;
-  try {
-    geo = await geocodeAddress(query.value);
-  } catch (err) {
-    if (err instanceof GeocodingError) {
-      throw new ProviderLookupFailedError(`Could not geocode address: ${err.message}`);
-    }
-    throw err;
-  }
+  // Falls back to area-level (ZIP/city) when the exact street address can't
+  // be pinned, rather than failing outright. Note the tradeoff: only the
+  // Census geocoder yields a census block FIPS, so an area-level match can
+  // still leave blockFips null — the live FCC data source needs that and
+  // will report it can't answer, which is the honest outcome.
+  const geo = await resolveApproximateLocation(query.value);
 
   if (!geo) {
     throw new ProviderLookupFailedError('Address not found — check spelling or try a ZIP code');
@@ -43,7 +40,7 @@ async function resolveLocation(query) {
   return {
     zip: null,
     matchedAddress: geo.matchedAddress,
-    blockFips: geo.blockFips,
+    blockFips: geo.blockFips ?? null,
     lat: geo.lat,
     lon: geo.lon,
   };
