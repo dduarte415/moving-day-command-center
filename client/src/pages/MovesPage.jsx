@@ -4,6 +4,7 @@ import { useMoveContext } from '../context/MoveContext';
 import { Loading, ErrorState, EmptyState } from '../components/StatusStates';
 import { formatDateLong, titleCaseAddress } from '../lib/formatDate';
 import RowMenu from '../components/RowMenu';
+import AddressAutocompleteInput from '../components/AddressAutocompleteInput';
 
 const emptyForm = { oldAddress: '', newAddress: '', moveDate: '', budgetCap: '' };
 
@@ -104,21 +105,21 @@ export default function MovesPage() {
           <form onSubmit={handleSubmit} className="mt-4 grid gap-3 sm:grid-cols-2">
             <label className="flex flex-col gap-1 text-sm">
               <span className="font-medium text-slate-700">Old address</span>
-              <input
+              <AddressAutocompleteInput
                 required
                 value={form.oldAddress}
-                onChange={(e) => setForm({ ...form, oldAddress: e.target.value })}
-                className="rounded-md border border-slate-300 px-3 py-2"
+                onChange={(v) => setForm({ ...form, oldAddress: v })}
+                className="w-full rounded-md border border-slate-300 px-3 py-2"
                 placeholder="123 Elm St, Springfield, IL"
               />
             </label>
             <label className="flex flex-col gap-1 text-sm">
               <span className="font-medium text-slate-700">New address</span>
-              <input
+              <AddressAutocompleteInput
                 required
                 value={form.newAddress}
-                onChange={(e) => setForm({ ...form, newAddress: e.target.value })}
-                className="rounded-md border border-slate-300 px-3 py-2"
+                onChange={(v) => setForm({ ...form, newAddress: v })}
+                className="w-full rounded-md border border-slate-300 px-3 py-2"
                 placeholder="456 Oak Ave, Austin, TX"
               />
             </label>
@@ -151,7 +152,11 @@ export default function MovesPage() {
               <button
                 type="submit"
                 disabled={submitting}
-                className="rounded-md bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-700 disabled:opacity-50"
+                className={`rounded-md px-4 py-2 text-sm font-medium transition-colors ${
+                  submitting
+                    ? 'cursor-not-allowed bg-gray-200 text-gray-400'
+                    : 'bg-brand-600 text-white hover:bg-brand-700'
+                }`}
               >
                 {submitting ? 'Creating…' : 'Create move'}
               </button>

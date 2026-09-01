@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { api, ApiError } from '../lib/apiClient';
 import { Loading, ErrorState, EmptyState } from '../components/StatusStates';
 import { titleCaseAddress } from '../lib/formatDate';
+import AddressAutocompleteInput from '../components/AddressAutocompleteInput';
 
 const TECH_BADGE = {
   Fiber: 'bg-emerald-100 text-emerald-800',
@@ -55,18 +56,32 @@ export default function ProviderLookupPage() {
           </label>
           <label className="flex flex-1 min-w-56 flex-col gap-1 text-sm">
             <span className="font-medium text-slate-700">{mode === 'address' ? 'Address' : 'ZIP code'}</span>
-            <input
-              required
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              className="rounded-md border border-slate-300 px-3 py-2"
-              placeholder={mode === 'address' ? '456 New Ave, Austin, TX 73301' : '73301'}
-            />
+            {mode === 'address' ? (
+              <AddressAutocompleteInput
+                required
+                value={query}
+                onChange={setQuery}
+                className="w-full rounded-md border border-slate-300 px-3 py-2"
+                placeholder="456 New Ave, Austin, TX 73301"
+              />
+            ) : (
+              <input
+                required
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                className="rounded-md border border-slate-300 px-3 py-2"
+                placeholder="73301"
+              />
+            )}
           </label>
           <button
             type="submit"
             disabled={status === 'loading'}
-            className="rounded-md bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-700 disabled:opacity-50"
+            className={`rounded-md px-4 py-2 text-sm font-medium transition-colors ${
+              status === 'loading'
+                ? 'cursor-not-allowed bg-gray-200 text-gray-400'
+                : 'bg-brand-600 text-white hover:bg-brand-700'
+            }`}
           >
             {status === 'loading' ? 'Searching…' : 'Search'}
           </button>
