@@ -101,21 +101,17 @@ export default function Layout() {
       <div className={`transition-[margin] duration-150 ${collapsed ? 'ml-[72px]' : 'ml-64'}`}>
         <main className="mx-auto max-w-[960px] px-6 py-6">
           {activeMove && (
-            <div className="mb-6">
-              <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
-                Your move
-              </p>
-              <div className="mt-1 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-                <h1 className="text-xl font-semibold text-slate-900">
-                  {formatDateLong(activeMove.moveDate)}
-                </h1>
-                {countdown && (
-                  <span className="text-sm font-medium text-brand-600">{countdown}</span>
-                )}
-              </div>
-              <p className="text-sm text-slate-500">
+            <div className="mb-4 flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
+              <p className="text-sm text-slate-600">
+                <span className="font-semibold text-slate-900">{formatDateLong(activeMove.moveDate)}</span>
+                {' · '}
                 {titleCaseAddress(activeMove.oldAddress)} → {titleCaseAddress(activeMove.newAddress)}
               </p>
+              {countdown && (
+                <span className="shrink-0 rounded-full bg-brand-50 px-2.5 py-0.5 text-xs font-medium text-brand-700">
+                  {countdown}
+                </span>
+              )}
             </div>
           )}
           <Outlet />
