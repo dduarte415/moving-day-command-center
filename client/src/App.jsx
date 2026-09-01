@@ -5,7 +5,7 @@ import RequireMove from './components/RequireMove';
 import MovesPage from './pages/MovesPage';
 import ChecklistPage from './pages/ChecklistPage';
 import BudgetPage from './pages/BudgetPage';
-import ProviderLookupPage from './pages/ProviderLookupPage';
+import NewAreaPage from './pages/NewAreaPage';
 
 export default function App() {
   return (
@@ -31,7 +31,9 @@ export default function App() {
                 </RequireMove>
               }
             />
-            <Route path="/provider-lookup" element={<ProviderLookupPage />} />
+            <Route path="/new-area" element={<NewAreaPage />} />
+            {/* Old path kept so existing links/bookmarks don't 404. */}
+            <Route path="/provider-lookup" element={<Navigate to="/new-area" replace />} />
             <Route path="*" element={<Navigate to="/checklist" replace />} />
           </Route>
         </Routes>

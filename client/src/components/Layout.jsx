@@ -3,12 +3,12 @@ import { NavLink, Outlet } from 'react-router-dom';
 import { useMoveContext } from '../context/MoveContext';
 import { formatDateLong, formatCountdown, titleCaseAddress } from '../lib/formatDate';
 import Logo, { LogoMark } from './Logo';
-import { ChecklistIcon, BudgetIcon, WifiIcon, MovesIcon, ChevronIcon } from './NavIcons';
+import { ChecklistIcon, BudgetIcon, MapPinIcon, MovesIcon, ChevronIcon } from './NavIcons';
 
 const navItems = [
   { to: '/checklist', label: 'Checklist', Icon: ChecklistIcon },
   { to: '/budget', label: 'Budget', Icon: BudgetIcon },
-  { to: '/provider-lookup', label: 'Internet Providers', Icon: WifiIcon },
+  { to: '/new-area', label: 'Your New Area', Icon: MapPinIcon },
   { to: '/moves', label: 'Moves', Icon: MovesIcon },
 ];
 

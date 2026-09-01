@@ -61,19 +61,6 @@ export default function MovesPage() {
 
   return (
     <div className="space-y-6">
-      {activeMove && (
-        <section className="rounded-lg border border-slate-200 bg-white p-5">
-          <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Current move</p>
-          <p className="mt-1 font-medium text-slate-900">
-            {titleCaseAddress(activeMove.oldAddress)} → {titleCaseAddress(activeMove.newAddress)}
-          </p>
-          <p className="text-sm text-slate-500">
-            {formatDateLong(activeMove.moveDate)}
-            {activeMove.budgetCap != null && ` · Budget cap ${Number(activeMove.budgetCap).toLocaleString(undefined, { style: 'currency', currency: 'USD' })}`}
-          </p>
-        </section>
-      )}
-
       {!showForm ? (
         <button
           type="button"
@@ -162,6 +149,19 @@ export default function MovesPage() {
               </button>
             </div>
           </form>
+        </section>
+      )}
+
+      {activeMove && (
+        <section className="rounded-lg border border-slate-200 bg-white p-5">
+          <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Current move</p>
+          <p className="mt-1 font-medium text-slate-900">
+            {titleCaseAddress(activeMove.oldAddress)} → {titleCaseAddress(activeMove.newAddress)}
+          </p>
+          <p className="text-sm text-slate-500">
+            {formatDateLong(activeMove.moveDate)}
+            {activeMove.budgetCap != null && ` · Budget cap ${Number(activeMove.budgetCap).toLocaleString(undefined, { style: 'currency', currency: 'USD' })}`}
+          </p>
         </section>
       )}
 
