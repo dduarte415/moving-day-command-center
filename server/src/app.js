@@ -8,6 +8,7 @@ import { movesRouter } from './routes/moves.js';
 import { tasksRouter } from './routes/tasks.js';
 import { budgetItemsRouter } from './routes/budgetItems.js';
 import { providerLookupRouter } from './routes/providerLookup.js';
+import { addressAutocompleteRouter } from './routes/addressAutocomplete.js';
 
 export function createApp() {
   const app = express();
@@ -43,6 +44,7 @@ export function createApp() {
   app.use('/api/tasks', tasksRouter);
   app.use('/api/budget-items', budgetItemsRouter);
   app.use('/api/provider-lookup', providerLookupRouter);
+  app.use('/api/address-autocomplete', addressAutocompleteRouter);
 
   app.use('/api', notFoundHandler);
   app.use(errorHandler);
