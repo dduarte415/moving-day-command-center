@@ -63,6 +63,12 @@ needs.
 2. **Queries the FCC Broadband Data Collection (BDC) API** for providers at
    that location, through a swappable `ProviderDataSource` adapter
    (`server/src/services/providerDataSource.js`).
+The UI renders this section **only against real FCC data**. Without BDC
+credentials the adapter serves clearly-labelled sample data, which is useful
+while developing but is noise in a live demo — a table of invented ISPs under
+a disclaimer is worse than no table at all. The integration stays wired up and
+appears on its own once credentials are set.
+
 3. **Caches** the result in Postgres (`provider_lookups`), keyed by a hash of
    the normalized query. A fresh cache hit skips the network entirely; if the
    live call fails, the *last successful* result is served instead (flagged
@@ -106,8 +112,10 @@ drive the live FCC lookup — that's reported honestly rather than faked.
 
 ## What's nearby
 
-`GET /api/local-places?address=` returns gyms and studios (pilates, yoga,
-dance), restaurants and cafés, groceries and shopping, and parks — grouped,
+`GET /api/local-places?address=` returns what actually matters when you land
+somewhere new — gyms and studios (pilates, yoga, dance), restaurants and
+cafés, groceries and shopping, health and pharmacies, everyday errands (post
+office, bank, hardware, laundry), transit hubs, and parks — grouped,
 nearest-first, with straight-line distances.
 
 Backed by [OpenStreetMap's Overpass API](https://overpass-api.de) — free and
@@ -120,6 +128,12 @@ usable rather than painful:
   doubles as the stale-fallback when Overpass is unreachable.
 - **Category caps.** Restaurants always dominate raw results, so each category
   is capped — otherwise the sparse-but-interesting ones get buried.
+- **Mirror failover.** The main Overpass endpoint refuses traffic from some
+  datacenter ranges — it worked from a laptop and failed from the deployed
+  host. Requests now fall through a list of instances. A mirror that answers
+  `200` with an empty element list counts as a *failure*, not a success:
+  accepting it would render "nothing nearby" for an address with plenty
+  nearby, and cache that emptiness.
 
 OSM maps *places*, not schedules, so there's no live events feed here; the
 recurring-class case is covered by the studios themselves.
@@ -155,7 +169,7 @@ npm run dev                # http://localhost:5173, proxies /api to :4000
 
 ### 4. Tests
 ```bash
-cd server && npm test      # vitest, 71 tests. Default-task date math; budget
+cd server && npm test      # vitest, 75 tests. Default-task date math; budget
                             # totals against a real local DB; and — with all
                             # outbound HTTP mocked — the geocoding fallback
                             # ladder, nearby-places shaping/caching, and
@@ -224,7 +238,7 @@ discovered.
   the wake-up cost, and a cold cache still pays full upstream latency. The UI
   shows explicit loading states throughout rather than appearing broken.
 - **No frontend tests.** Scoped out for timeline, not because they don't
-  belong. The backend has 71 tests; the frontend was verified by driving the
+  belong. The backend has 75 tests; the frontend was verified by driving the
   real app in a browser. Next step would be React Testing Library component
   tests for the stateful pieces (move switching, budget totals, the
   autocomplete input) plus the existing Playwright flows promoted into an

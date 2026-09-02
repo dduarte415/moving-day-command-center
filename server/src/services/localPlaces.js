@@ -13,8 +13,26 @@ import { prisma } from '../lib/prisma.js';
 import { resolveApproximateLocation } from './geocoding.js';
 import { OUTBOUND_USER_AGENT } from '../lib/userAgent.js';
 
-const OVERPASS_URL = 'https://overpass-api.de/api/interpreter';
-const SEARCH_RADIUS_M = 8000; // ~5 miles
+// Overpass is a volunteer-run service and the main endpoint refuses traffic
+// from some datacenter ranges — it worked from a laptop but failed with a
+// network-level error from the deployed host. Mirrors are tried in order so
+// one instance blocking or rate-limiting cloud IPs doesn't take the feature
+// down. Order is deliberate: main first (fastest, most current), then
+// community mirrors.
+const OVERPASS_MIRRORS = [
+  'https://overpass-api.de/api/interpreter',
+  'https://overpass.private.coffee/api/interpreter',
+];
+// 3 miles. Wider was measurably slower (the query is the expensive part, and
+// it ran right up against the request timeout) without being more useful —
+// "what's near my new place" means walkable-to-a-short-drive, not an hour out.
+const SEARCH_RADIUS_M = 5000;
+// Overpass needs generous headroom: this query legitimately takes ~20s
+// against a busy public instance. The client timeout has to exceed the
+// server-side one in the query header, or a query that would have succeeded
+// gets aborted just before it returns.
+const OVERPASS_SERVER_TIMEOUT_S = 40;
+const OVERPASS_CLIENT_TIMEOUT_MS = 50_000;
 const CACHE_FRESH_MS = 7 * 24 * 60 * 60 * 1000; // POIs change slowly
 const MAX_PER_CATEGORY = 8;
 
@@ -51,7 +69,43 @@ const CATEGORIES = [
     key: 'shopping',
     label: 'Shopping & Groceries',
     filters: ['nwr["shop"~"^(supermarket|mall|department_store|convenience|bakery|greengrocer)$"]'],
-    matches: (t) => Boolean(t.shop),
+    // Explicit rather than `Boolean(t.shop)`: a catch-all here would swallow
+    // hardware and laundry before the errands category could claim them.
+    matches: (t) =>
+      ['supermarket', 'mall', 'department_store', 'convenience', 'bakery', 'greengrocer'].includes(
+        t.shop
+      ),
+  },
+  {
+    key: 'health',
+    label: 'Health & Pharmacy',
+    filters: ['nwr["amenity"~"^(pharmacy|doctors|hospital|dentist|clinic|veterinary)$"]'],
+    matches: (t) =>
+      ['pharmacy', 'doctors', 'hospital', 'dentist', 'clinic', 'veterinary'].includes(t.amenity),
+  },
+  {
+    key: 'errands',
+    label: 'Everyday Errands',
+    filters: [
+      'nwr["amenity"~"^(post_office|bank|library|fuel)$"]',
+      'nwr["shop"~"^(hardware|doityourself|laundry|dry_cleaning)$"]',
+    ],
+    matches: (t) =>
+      ['post_office', 'bank', 'library', 'fuel'].includes(t.amenity) ||
+      ['hardware', 'doityourself', 'laundry', 'dry_cleaning'].includes(t.shop),
+  },
+  {
+    key: 'transit',
+    label: 'Getting Around',
+    // Stations and transit hubs only — individual bus stops are far too dense
+    // to be useful here and would swamp the query.
+    filters: [
+      'nwr["railway"="station"]',
+      'nwr["amenity"="bus_station"]',
+      'nwr["public_transport"="station"]',
+    ],
+    matches: (t) =>
+      t.railway === 'station' || t.amenity === 'bus_station' || t.public_transport === 'station',
   },
   {
     key: 'parks',
@@ -66,7 +120,7 @@ function buildQuery(lat, lon) {
     .map((f) => `  ${f}(around:${SEARCH_RADIUS_M},${lat},${lon});`)
     .join('\n');
   // `out center` gives ways/relations a coordinate; nodes already have one.
-  return `[out:json][timeout:25];\n(\n${filters}\n);\nout center 400;`;
+  return `[out:json][timeout:${OVERPASS_SERVER_TIMEOUT_S}];\n(\n${filters}\n);\nout center 400;`;
 }
 
 // Straight-line distance in miles. Deliberately not driving distance — that
@@ -112,25 +166,48 @@ function toPlace(element, originLat, originLon) {
   };
 }
 
+// Try each mirror in turn. A refusal, timeout, or 5xx from one instance is
+// routine for a volunteer-run service, so it moves to the next rather than
+// failing the request. Only when every mirror is exhausted does this throw —
+// and even then the caller still has the stale-cache fallback.
+async function fetchOverpassElements(query) {
+  const failures = [];
+
+  for (const mirror of OVERPASS_MIRRORS) {
+    try {
+      const response = await fetch(mirror, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain', 'User-Agent': OUTBOUND_USER_AGENT },
+        body: query,
+        signal: AbortSignal.timeout(OVERPASS_CLIENT_TIMEOUT_MS),
+      });
+
+      if (response.ok) {
+        const data = await response.json().catch(() => null);
+        const elements = Array.isArray(data?.elements) ? data.elements : null;
+
+        // A 200 carrying no elements is not a usable answer. Some hosts on
+        // the mirror list answer instantly with an empty result set, and
+        // accepting that as success is worse than an outright error: the
+        // page renders "nothing nearby" for an address that in fact has
+        // plenty, and the empty result gets cached. Treat it as a failure
+        // and move to the next mirror.
+        if (elements?.length) return elements;
+        failures.push(`${new URL(mirror).host}: 200 but no elements`);
+        continue;
+      }
+
+      failures.push(`${new URL(mirror).host}: HTTP ${response.status}`);
+    } catch (err) {
+      failures.push(`${new URL(mirror).host}: ${err.message}`);
+    }
+  }
+
+  throw new LocalPlacesError(`All places providers unavailable (${failures.join('; ')})`);
+}
+
 async function fetchFromOverpass(lat, lon) {
-  let response;
-  try {
-    response = await fetch(OVERPASS_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'text/plain', 'User-Agent': OUTBOUND_USER_AGENT },
-      body: buildQuery(lat, lon),
-      signal: AbortSignal.timeout(30_000),
-    });
-  } catch (err) {
-    throw new LocalPlacesError(`Places lookup failed: ${err.message}`);
-  }
-
-  if (!response.ok) {
-    throw new LocalPlacesError(`Places service returned ${response.status}`);
-  }
-
-  const data = await response.json().catch(() => null);
-  const elements = Array.isArray(data?.elements) ? data.elements : [];
+  const elements = await fetchOverpassElements(buildQuery(lat, lon));
 
   const places = elements
     .map((el) => toPlace(el, lat, lon))

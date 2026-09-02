@@ -193,3 +193,55 @@ describe('lookupLocalPlaces cache behavior', () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 });
+
+// Regression coverage for the failure that took the live page down. A host on
+// the mirror list answered instantly with HTTP 200 and an empty element list.
+// The failover only checked response.ok, so it accepted that as success and
+// rendered "nothing nearby" for an address with plenty nearby — then cached
+// the empty result.
+describe('Overpass mirror failover', () => {
+  beforeEach(() => {
+    findUnique.mockReset();
+    findUnique.mockResolvedValue(null);
+    upsert.mockReset();
+    resolveApproximateLocation.mockReset();
+    resolveApproximateLocation.mockResolvedValue(ORIGIN);
+  });
+
+  it('treats a 200 with no elements as a failure and tries the next mirror', async () => {
+    fetchMock
+      .mockResolvedValueOnce(overpassResponse([])) // broken mirror: fast, empty, "ok"
+      .mockResolvedValueOnce(overpassResponse([node(1, { leisure: 'park', name: 'Real Park' })]));
+
+    const result = await lookupLocalPlaces('456 Fake Ave, Novato, CA');
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(groupFor(result, 'parks').places[0].name).toBe('Real Park');
+  });
+
+  it('falls through a non-ok mirror to a working one', async () => {
+    fetchMock
+      .mockResolvedValueOnce({ ok: false, status: 504, json: async () => ({}) })
+      .mockResolvedValueOnce(overpassResponse([node(1, { leisure: 'park', name: 'Backup Park' })]));
+
+    const result = await lookupLocalPlaces('456 Fake Ave, Novato, CA');
+    expect(groupFor(result, 'parks').places[0].name).toBe('Backup Park');
+  });
+
+  it('falls through a mirror that throws (blocked or timed out)', async () => {
+    fetchMock
+      .mockRejectedValueOnce(new Error('fetch failed'))
+      .mockResolvedValueOnce(overpassResponse([node(1, { leisure: 'park', name: 'Second Park' })]));
+
+    const result = await lookupLocalPlaces('456 Fake Ave, Novato, CA');
+    expect(groupFor(result, 'parks').places[0].name).toBe('Second Park');
+  });
+
+  it('reports every mirror in the error when all of them fail', async () => {
+    fetchMock.mockResolvedValue(overpassResponse([]));
+
+    await expect(lookupLocalPlaces('456 Fake Ave, Novato, CA')).rejects.toThrow(
+      /All places providers unavailable/
+    );
+  });
+});

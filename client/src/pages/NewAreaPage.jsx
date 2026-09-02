@@ -57,7 +57,6 @@ export default function NewAreaPage() {
   const [placesError, setPlacesError] = useState(null);
   const [providers, setProviders] = useState(null);
   const [providersStatus, setProvidersStatus] = useState('idle');
-  const [providersError, setProvidersError] = useState(null);
 
   // Seed the field from the move's destination — the whole point of the page
   // is "what's around where I'm going", so make that the zero-effort default.
@@ -84,15 +83,15 @@ export default function NewAreaPage() {
       });
 
     setProvidersStatus('loading');
-    setProvidersError(null);
     api
       .get(`/api/provider-lookup?address=${encodeURIComponent(query)}`)
       .then((data) => {
         setProviders(data);
         setProvidersStatus('ready');
       })
-      .catch((err) => {
-        setProvidersError(err instanceof ApiError ? err.message : 'Unexpected error');
+      .catch(() => {
+        // A provider-lookup failure is silent by design: the section only
+        // renders with real FCC data anyway, so there is nothing to report.
         setProviders(null);
         setProvidersStatus('error');
       });
@@ -109,14 +108,15 @@ export default function NewAreaPage() {
     search(address);
   }
 
-  const busy = placesStatus === 'loading' || providersStatus === 'loading';
+  const busy = placesStatus === 'loading';
 
   return (
     <div className="space-y-6">
       <section className="rounded-lg border border-slate-200 bg-white p-5">
         <h2 className="text-base font-semibold text-slate-800">Get to know your new area</h2>
         <p className="mt-1 text-sm text-slate-500">
-          Gyms and studios, places to eat, groceries, parks — plus which internet providers reach the address.
+          Gyms and studios, places to eat, groceries, health and pharmacies, everyday errands,
+          transit, and parks — everything worth knowing about before you land.
         </p>
         <form onSubmit={handleSubmit} className="mt-4 flex flex-wrap items-end gap-3">
           <label className="flex min-w-56 flex-1 flex-col gap-1 text-sm">
@@ -177,24 +177,17 @@ export default function NewAreaPage() {
         </>
       )}
 
-      {/* --- Internet providers --- */}
-      <section>
-        <h3 className="mb-1 font-semibold text-slate-800">Internet Providers</h3>
-        {providersStatus === 'loading' && <Loading label="Checking providers…" />}
-        {providersStatus === 'error' && (
-          <ErrorState
-            message={`${providersError} — couldn't retrieve live data right now.`}
-            onRetry={() => search(address)}
-          />
-        )}
-        {providersStatus === 'ready' && providers && (
+      {/* --- Internet providers ---
+          Only rendered against real FCC data. Without BDC credentials the
+          data source serves clearly-labelled sample data, which is useful
+          for local development but is noise in a live demo — a table of
+          invented ISPs under a disclaimer is worse than no table. The
+          integration stays wired up and lights up on its own the moment
+          real credentials are configured. */}
+      {providers?.source === 'fcc' && providersStatus === 'ready' && (
+        <section>
+          <h3 className="mb-1 font-semibold text-slate-800">Internet Providers</h3>
           <div className="space-y-2">
-            {providers.source === 'mock' && (
-              <div className="rounded-md border border-amber-300 bg-amber-50 px-4 py-2 text-xs text-amber-800">
-                Showing sample data — live FCC lookup requires an API token (see README). This isn't
-                live availability data.
-              </div>
-            )}
             {providers.stale && (
               <div className="rounded-md border border-slate-300 bg-slate-50 px-4 py-2 text-xs text-slate-600">
                 Live data was unavailable — showing the last successful result from{' '}
@@ -239,10 +232,10 @@ export default function NewAreaPage() {
               </div>
             )}
           </div>
-        )}
-      </section>
+        </section>
+      )}
 
-      {placesStatus === 'idle' && providersStatus === 'idle' && (
+      {placesStatus === 'idle' && (
         <EmptyState
           title="Search an address"
           description="Set a move with a destination address, or search one above."
