@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { calendarDateSchema } from './calendarDate.js';
 
 export const idParamSchema = z.object({
   id: z.uuid('Invalid id'),
@@ -15,7 +16,7 @@ const moneySchema = z.coerce
 export const createMoveSchema = z.object({
   oldAddress: z.string().trim().min(1).max(300),
   newAddress: z.string().trim().min(1).max(300),
-  moveDate: z.coerce.date(),
+  moveDate: calendarDateSchema,
   budgetCap: moneySchema,
   // Power the "leftover after rent" tracker on the Budget page.
   monthlyIncome: moneySchema,
