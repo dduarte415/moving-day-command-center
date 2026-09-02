@@ -247,7 +247,7 @@ export default function BudgetPage() {
                     : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
                 }`}
               >
-                {item.isPaid ? 'Paid ✓' : 'Unpaid'}
+                {item.isPaid ? 'Paid' : 'Unpaid'}
               </button>
               <RowMenu actions={[{ label: 'Delete', danger: true, onClick: () => handleDelete(item.id) }]} />
             </li>

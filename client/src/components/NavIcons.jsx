@@ -76,6 +76,14 @@ export function BulbIcon(props) {
   );
 }
 
+export function CloseIcon(props) {
+  return (
+    <svg viewBox="0 0 24 24" className="h-5 w-5" {...common} {...props}>
+      <path d="M6 6l12 12M18 6L6 18" />
+    </svg>
+  );
+}
+
 export function PlusIcon(props) {
   return (
     <svg viewBox="0 0 24 24" className="h-5 w-5" {...common} {...props}>

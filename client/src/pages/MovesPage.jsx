@@ -5,6 +5,7 @@ import { Loading, ErrorState, EmptyState } from '../components/StatusStates';
 import { formatDateLong, titleCaseAddress } from '../lib/formatDate';
 import RowMenu from '../components/RowMenu';
 import AddressAutocompleteInput from '../components/AddressAutocompleteInput';
+import { CloseIcon } from '../components/NavIcons';
 
 const emptyForm = { oldAddress: '', newAddress: '', moveDate: '', budgetCap: '' };
 
@@ -85,7 +86,7 @@ export default function MovesPage() {
                 aria-label="Cancel"
                 className="text-slate-400 hover:text-slate-600"
               >
-                ✕
+                <CloseIcon className="h-4 w-4" />
               </button>
             )}
           </div>

@@ -1,4 +1,4 @@
-# 🏠 Moving Day Command Center
+# Moving Day Command Center
 
 A full-stack app for managing a move end-to-end: a task checklist, a budget
 tracker, and a real technical feature — looking up which internet providers
@@ -194,7 +194,7 @@ and a managed Postgres instance.
 | 8 | Authorization, not just authentication | No multi-user auth in this MVP (see below) — but `tasksRouter.patch` has a comment marking exactly where a per-move ownership check belongs once accounts exist, matching the brief's own `PATCH /api/tasks/456` example |
 | 9 | Idempotent submissions | Add-task and add-budget-item both check for a matching row created in the last 10s and return it instead of inserting a duplicate; frontend also disables submit buttons while a request is in flight |
 | 10 | Trust nothing from the client | Budget totals are recomputed from the DB on every request (`services/budgetSummary.js`) — the client never gets to assert a total |
-| 11 | This README | 👋 |
+| 11 | This README | You are reading it |
 
 ## Known limitations
 
