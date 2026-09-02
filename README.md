@@ -2,7 +2,8 @@
 
 A full-stack app for managing a move end-to-end: a task checklist, a budget
 tracker, and a real technical feature — looking up which internet providers
-serve a new address using public FCC broadband data.
+serve a new address using public FCC broadband data, alongside what's actually
+around the destination (gyms and studios, food, groceries, parks).
 
 Built as a portfolio project (Summer 2027 internship cycle). The goal wasn't
 feature count — it's one genuinely hard integration done honestly, clean
@@ -14,9 +15,9 @@ needs.
 
 ## Screenshots
 
-| Checklist | Budget | Provider lookup |
+| Checklist | Budget | Your New Area |
 |---|---|---|
-| ![Checklist grouped by category](docs/screenshots/checklist.png) | ![Budget tracker with progress bar](docs/screenshots/budget.png) | ![Internet provider lookup results](docs/screenshots/provider-lookup.png) |
+| ![Checklist grouped by category](docs/screenshots/checklist.png) | ![Budget tracker with leftover-after-rent tracker](docs/screenshots/budget.png) | ![Nearby places and internet providers](docs/screenshots/new-area.png) |
 
 ## Architecture
 
@@ -31,6 +32,8 @@ needs.
                                              ▼
                                  ┌───────────────────────┐
                                  │ US Census Geocoder      │  (free, keyless)
+                                 │ OSM Nominatim           │  (free, keyless)
+                                 │ OSM Overpass            │  (free, keyless)
                                  │ FCC Broadband Data       │  (requires a free
                                  │ Collection (BDC) API     │   registered token)
                                  └───────────────────────┘
@@ -76,6 +79,45 @@ fallback logic are all real and fully exercised either way. Swapping in real
 credentials is a config change, not a rewrite — see `providerDataSource.js`
 for exactly what's verified vs. not.
 
+## Knowing where you are: the geocoding fallback
+
+Exact street-level geocoding fails constantly for legitimate reasons — new
+construction, rural routes, unit numbers, plain typos. Refusing to show
+anything in those cases makes every location feature look broken, so
+`resolveApproximateLocation()` (`server/src/services/geocoding.js`) walks a
+ladder and reports how far down it landed:
+
+| Tier | Source | Reported precision |
+|---|---|---|
+| 1 | Census geocoder (also yields the census block FIPS) | `address` |
+| 2 | Nominatim, full address string | `address` |
+| 3 | Nominatim, just the ZIP | `area` |
+| 4 | Nominatim, just `City, ST` | `area` |
+
+The UI says so plainly when results are area-level rather than exact. Only the
+Census tier returns a census block, so an area-level match legitimately can't
+drive the live FCC lookup — that's reported honestly rather than faked.
+
+## What's nearby
+
+`GET /api/local-places?address=` returns gyms and studios (pilates, yoga,
+dance), restaurants and cafés, groceries and shopping, and parks — grouped,
+nearest-first, with straight-line distances.
+
+Backed by [OpenStreetMap's Overpass API](https://overpass-api.de) — free and
+keyless, consistent with the rest of the integrations. Two things make it
+usable rather than painful:
+
+- **A Postgres cache (`place_lookups`).** Overpass takes ~8s cold versus ~15ms
+  cached. A DB cache (not in-memory) is deliberate: it survives the free-tier
+  dyno spin-downs that would otherwise make every first visit slow, and it
+  doubles as the stale-fallback when Overpass is unreachable.
+- **Category caps.** Restaurants always dominate raw results, so each category
+  is capped — otherwise the sparse-but-interesting ones get buried.
+
+OSM maps *places*, not schedules, so there's no live events feed here; the
+recurring-class case is covered by the studios themselves.
+
 ## Setup
 
 ### Prerequisites
@@ -107,9 +149,11 @@ npm run dev                # http://localhost:5173, proxies /api to :4000
 
 ### 4. Tests
 ```bash
-cd server && npm test      # vitest — default-task date math, budget totals
-                            # against a real local DB, provider-lookup cache/
-                            # fallback branches (mocked)
+cd server && npm test      # vitest, 31 tests. Default-task date math; budget
+                            # totals against a real local DB; and — with all
+                            # outbound HTTP mocked — the geocoding fallback
+                            # ladder, nearby-places shaping/caching, and
+                            # provider-lookup cache + fallback branches.
 ```
 
 ### Enabling live FCC data (optional)
@@ -142,9 +186,9 @@ and a managed Postgres instance.
 |---|---|---|
 | 1 | No secrets in frontend/git history | `.env` gitignored from the very first commit; `.env.example` documents required vars with no real values; frontend never holds an API key (geocoding is keyless, FCC token lives only in `server/.env`) |
 | 2 | External calls server-side only | Frontend calls only its own `/api/*`; Census + FCC calls happen exclusively in `server/src/services/*` |
-| 3 | Rate limiting | `express-rate-limit` globally on `/api` (300/15min), plus a tighter limit on `/api/provider-lookup` (15/min) specifically, since that's the route that can burn third-party quota |
+| 3 | Rate limiting | `express-rate-limit` globally on `/api` (300/15min), plus tighter per-route limits on every endpoint that calls out: `/api/provider-lookup` (15/min), `/api/local-places` (10/min), `/api/address-autocomplete` (60/min, since typing fires a request per keystroke) |
 | 4 | Input validation / no raw SQL | Every route validates with Zod (`server/src/schemas/*`); all queries go through Prisma's parameterized query builder — no string-concatenated SQL anywhere |
-| 5 | Cache external responses | `provider_lookups` table, read-through cache with a 24h freshness window and stale-fallback on upstream failure |
+| 5 | Cache external responses | `provider_lookups` (24h) and `place_lookups` (7d) tables, both read-through with stale-fallback on upstream failure; address autocomplete uses a bounded in-memory cache since it's a short-lived convenience |
 | 6 | CORS locked to real origin | `CORS_ORIGIN` env var, no wildcard; must be the exact deployed frontend URL in production |
 | 7 | Environment-based config | `server/src/config/env.js` is the single place `process.env` is read; everything else imports from it |
 | 8 | Authorization, not just authentication | No multi-user auth in this MVP (see below) — but `tasksRouter.patch` has a comment marking exactly where a per-move ownership check belongs once accounts exist, matching the brief's own `PATCH /api/tasks/456` example |
@@ -173,7 +217,7 @@ and a managed Postgres instance.
 - **Frontend:** React 19, Vite, Tailwind CSS v4, React Router
 - **Backend:** Node.js, Express 5, Zod
 - **Database:** PostgreSQL via Prisma 7 (driver-adapter client, `@prisma/adapter-pg`)
-- **External APIs:** US Census Geocoder (keyless), FCC Broadband Data Collection API
+- **External APIs:** US Census Geocoder, OSM Nominatim, OSM Overpass (all keyless), FCC Broadband Data Collection API
 - **Testing:** Vitest
 - **Deployment:** Render (backend web service + static frontend + managed Postgres)
 
@@ -188,4 +232,6 @@ and a managed Postgres instance.
 | GET | `/api/budget-items?moveId=` | Returns `{ items, summary }` |
 | POST/PATCH/DELETE | `/api/budget-items`, `/api/budget-items/:id` | Every response includes a fresh `summary` |
 | GET | `/api/provider-lookup?address=` or `?zip=` | Rate-limited separately; see above |
+| GET | `/api/local-places?address=` | Nearby places, grouped by category; rate-limited separately |
+| GET | `/api/address-autocomplete?q=` | Address suggestions (min 3 chars); fails quiet by design |
 | GET | `/health` | Liveness check |
