@@ -174,6 +174,15 @@ cd server && npm test      # vitest, 75 tests. Default-task date math; budget
                             # outbound HTTP mocked — the geocoding fallback
                             # ladder, nearby-places shaping/caching, and
                             # provider-lookup cache + fallback branches.
+
+cd client && npm test      # vitest + React Testing Library, 49 tests. Date and
+                            # address formatting (incl. the UTC and state-code
+                            # edge cases), budget tip selection, and component
+                            # behavior: move switching/persistence, the
+                            # RequireMove redirect guard, server-authoritative
+                            # budget totals, checklist grouping and progress,
+                            # and the autocomplete's debounce, keyboard
+                            # selection, fail-quiet and out-of-order handling.
 ```
 
 ### Enabling live FCC data (optional)
@@ -237,12 +246,13 @@ discovered.
   hit: initial page load and the first API call after a spin-down still pay
   the wake-up cost, and a cold cache still pays full upstream latency. The UI
   shows explicit loading states throughout rather than appearing broken.
-- **No frontend tests.** Scoped out for timeline, not because they don't
-  belong. The backend has 75 tests; the frontend was verified by driving the
-  real app in a browser. Next step would be React Testing Library component
-  tests for the stateful pieces (move switching, budget totals, the
-  autocomplete input) plus the existing Playwright flows promoted into an
-  automated, CI-run suite.
+- **No automated end-to-end tests.** The backend has 75 tests and the
+  frontend 49 (Vitest + React Testing Library, covering the stateful pieces:
+  move switching, the redirect guard, budget totals, checklist progress, and
+  the autocomplete). What's still manual is the full-stack path — the
+  browser flows were driven with Playwright by hand rather than promoted
+  into a CI-run suite, so nothing automatically catches a break that only
+  appears when the real frontend talks to the real backend.
 - **Tests mock the external APIs.** Every outbound call is stubbed with
   recorded fixtures, which keeps the suite fast and deterministic but means
   it cannot catch upstream schema drift — if Overpass or Nominatim changed
@@ -272,7 +282,7 @@ discovered.
 - **Backend:** Node.js, Express 5, Zod
 - **Database:** PostgreSQL via Prisma 7 (driver-adapter client, `@prisma/adapter-pg`)
 - **External APIs:** US Census Geocoder, OSM Nominatim, OSM Overpass (all keyless), FCC Broadband Data Collection API
-- **Testing:** Vitest
+- **Testing:** Vitest (backend), Vitest + React Testing Library (frontend)
 - **Deployment:** Render (backend web service + static frontend + managed Postgres)
 
 ## API reference
