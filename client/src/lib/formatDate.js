@@ -39,12 +39,17 @@ export function formatCountdown(isoString) {
 }
 
 // Display-only normalization — "456 oakland ave" -> "456 Oakland Ave". Never
-// mutates what's stored, just how it's shown. An explicit allow-list (not
-// "any 2-letter word") stays upper-cased — directionals and US state codes
-// read wrong as "Nw"/"Dc", but plenty of legitimate street suffixes are
-// also exactly two letters (Rd, St, Ln, Ct) and must NOT be forced upper.
-const KEEP_UPPERCASE = new Set([
-  'N', 'S', 'E', 'W', 'NE', 'NW', 'SE', 'SW',
+// mutates what's stored, just how it's shown.
+//
+// Casing two-letter tokens is genuinely ambiguous: "CT" is Connecticut but
+// "Ct" is Court, and the same collision hits LA/Ln, IN, OR, ME. Position
+// disambiguates them — a state code sits at the end of the address, either
+// right before the ZIP ("Austin, TX 73301") or as the final token of a
+// comma-separated address ("Austin, TX"). A two-letter street suffix never
+// does. Directionals are safe to upper-case anywhere.
+const DIRECTIONALS = new Set(['N', 'S', 'E', 'W', 'NE', 'NW', 'SE', 'SW']);
+
+const STATE_CODES = new Set([
   'AL', 'AK', 'AZ', 'AR', 'CA', 'CO', 'CT', 'DE', 'FL', 'GA', 'HI', 'ID',
   'IL', 'IN', 'IA', 'KS', 'KY', 'LA', 'ME', 'MD', 'MA', 'MI', 'MN', 'MS',
   'MO', 'MT', 'NE', 'NV', 'NH', 'NJ', 'NM', 'NY', 'NC', 'ND', 'OH', 'OK',
@@ -52,14 +57,27 @@ const KEEP_UPPERCASE = new Set([
   'WI', 'WY', 'DC', 'PR',
 ]);
 
+const stripPunctuation = (word) => word.replace(/[.,]/g, '');
+const isZip = (word) => /^\d{5}(-\d{4})?$/.test(stripPunctuation(word ?? ''));
+
 export function titleCaseAddress(address) {
   if (!address) return '';
-  return address
-    .split(' ')
-    .map((word) => {
+  const words = address.split(' ');
+  const hasComma = address.includes(',');
+
+  return words
+    .map((word, i) => {
       if (!word) return word;
-      const bare = word.replace(/[.,]/g, '');
-      if (KEEP_UPPERCASE.has(bare.toUpperCase())) return word.toUpperCase();
+      const bare = stripPunctuation(word).toUpperCase();
+
+      if (DIRECTIONALS.has(bare)) return word.toUpperCase();
+
+      if (STATE_CODES.has(bare)) {
+        const isBeforeZip = isZip(words[i + 1]);
+        const isFinalTokenOfCommaAddress = hasComma && i === words.length - 1;
+        if (isBeforeZip || isFinalTokenOfCommaAddress) return word.toUpperCase();
+      }
+
       return word[0].toUpperCase() + word.slice(1).toLowerCase();
     })
     .join(' ');
