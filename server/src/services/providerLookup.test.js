@@ -12,7 +12,14 @@ vi.mock('./providerDataSource.js', () => ({
   ProviderUnavailableError: class ProviderUnavailableError extends Error {},
 }));
 
-const { lookupProviders, normalizeQuery, hashQuery } = await import('./providerLookup.js');
+const resolveApproximateLocation = vi.fn();
+vi.mock('./geocoding.js', () => ({
+  resolveApproximateLocation: (...a) => resolveApproximateLocation(...a),
+}));
+
+const { lookupProviders, normalizeQuery, hashQuery, ProviderLookupFailedError } = await import(
+  './providerLookup.js'
+);
 
 describe('normalizeQuery / hashQuery', () => {
   it('prefers address over zip when both given, and hashes case-insensitively', () => {
@@ -32,6 +39,7 @@ describe('lookupProviders cache/fallback behavior', () => {
     findUnique.mockReset();
     upsert.mockReset();
     fetchProviders.mockReset();
+    resolveApproximateLocation.mockReset();
   });
 
   it('returns a fresh cache hit without calling the data source', async () => {
@@ -75,5 +83,68 @@ describe('lookupProviders cache/fallback behavior', () => {
 
     expect(result.stale).toBe(false);
     expect(upsert).toHaveBeenCalledOnce();
+  });
+});
+
+// Regression coverage for the bug the "Your New Area" page surfaced: the
+// address path used to call the Census geocoder directly and 502 on any
+// address Census couldn't pin — including the app's own demo address. It now
+// goes through resolveApproximateLocation, which degrades to area precision.
+describe('lookupProviders address path (geocoding fallback)', () => {
+  beforeEach(() => {
+    findUnique.mockReset();
+    upsert.mockReset();
+    fetchProviders.mockReset();
+    resolveApproximateLocation.mockReset();
+  });
+
+  it('succeeds with area-level results when the exact address cannot be pinned', async () => {
+    findUnique.mockResolvedValue(null);
+    // No blockFips — exactly what an area-level (ZIP/city) match looks like.
+    resolveApproximateLocation.mockResolvedValue({
+      matchedAddress: '94945, Novato, Marin County, California',
+      lat: 38.1096,
+      lon: -122.5731,
+      precision: 'area',
+    });
+    fetchProviders.mockResolvedValue([{ providerName: 'Metro Fiber Co', technology: 'Fiber' }]);
+
+    const result = await lookupProviders({ address: '456 Fake Ave, Novato, CA 94945' });
+
+    expect(result.providers).toHaveLength(1);
+    expect(result.matchedAddress).toContain('94945');
+    expect(fetchProviders).toHaveBeenCalledWith(
+      expect.objectContaining({ blockFips: null, address: '456 Fake Ave, Novato, CA 94945' })
+    );
+  });
+
+  it('passes the census block through when the address resolves precisely', async () => {
+    findUnique.mockResolvedValue(null);
+    resolveApproximateLocation.mockResolvedValue({
+      matchedAddress: '1600 PENNSYLVANIA AVE NW, WASHINGTON, DC, 20500',
+      lat: 38.8987,
+      lon: -77.0353,
+      blockFips: '110019800001034',
+      precision: 'address',
+    });
+    fetchProviders.mockResolvedValue([{ providerName: 'Metro Fiber Co' }]);
+
+    await lookupProviders({ address: '1600 Pennsylvania Ave NW, Washington, DC 20500' });
+
+    // The live FCC data source keys on blockFips — losing it here would
+    // silently break real provider lookups once credentials are configured.
+    expect(fetchProviders).toHaveBeenCalledWith(
+      expect.objectContaining({ blockFips: '110019800001034' })
+    );
+  });
+
+  it('still reports a clean failure when the address cannot be located at all', async () => {
+    findUnique.mockResolvedValue(null);
+    resolveApproximateLocation.mockResolvedValue(null);
+
+    await expect(
+      lookupProviders({ address: 'definitely not a place' })
+    ).rejects.toBeInstanceOf(ProviderLookupFailedError);
+    expect(fetchProviders).not.toHaveBeenCalled();
   });
 });
