@@ -10,7 +10,13 @@ feature count — it's one genuinely hard integration done honestly, clean
 architecture, and the security/engineering habits a production app actually
 needs.
 
-**Live demo:** _TODO — filled in after deployment_
+**Live demo:** https://moving-day-app.onrender.com
+
+> Hosted on Render's free tier, which spins services down when idle — the
+> first request after a quiet period takes ~50 seconds to wake the API, then
+> responds normally. The demo starts empty; create a move and the default
+> checklist seeds itself.
+
 **Repo:** you're in it
 
 ## Screenshots
