@@ -4,6 +4,7 @@ import { validate } from '../middleware/validate.js';
 import { ApiError } from '../middleware/errorHandler.js';
 import { createMoveSchema, updateMoveSchema, idParamSchema } from '../schemas/moveSchemas.js';
 import { buildDefaultTasksForMove } from '../lib/defaultTasks.js';
+import { createIdempotently, duplicateWindowStart } from '../lib/idempotency.js';
 
 export const movesRouter = Router();
 
@@ -24,18 +25,36 @@ movesRouter.get('/:id', validate(idParamSchema, 'params'), async (req, res) => {
 // user never lands on an empty checklist.
 movesRouter.post('/', validate(createMoveSchema), async (req, res) => {
   const { oldAddress, newAddress, moveDate, budgetCap, monthlyIncome, monthlyRent } = req.body;
-  const move = await prisma.move.create({
-    data: {
-      oldAddress,
-      newAddress,
-      moveDate,
-      budgetCap,
-      monthlyIncome,
-      monthlyRent,
-      tasks: { create: buildDefaultTasksForMove(moveDate) },
-    },
+
+  // A duplicate create here is especially bad: each extra move also seeds a
+  // full default checklist, so a double-click leaves both a junk move and
+  // six junk tasks.
+  const { record: move, deduped } = await createIdempotently({
+    dedupeKey: `move:${oldAddress.toLowerCase()}|${newAddress.toLowerCase()}|${moveDate.toISOString()}`,
+    findExisting: (tx) =>
+      tx.move.findFirst({
+        where: {
+          oldAddress,
+          newAddress,
+          moveDate,
+          createdAt: { gte: duplicateWindowStart() },
+        },
+      }),
+    create: (tx) =>
+      tx.move.create({
+        data: {
+          oldAddress,
+          newAddress,
+          moveDate,
+          budgetCap,
+          monthlyIncome,
+          monthlyRent,
+          tasks: { create: buildDefaultTasksForMove(moveDate) },
+        },
+      }),
   });
-  res.status(201).json(move);
+
+  res.status(deduped ? 200 : 201).json(move);
 });
 
 movesRouter.patch(

@@ -9,10 +9,9 @@ import {
   updateBudgetItemSchema,
 } from '../schemas/budgetSchemas.js';
 import { buildBudgetSummary as buildSummary } from '../services/budgetSummary.js';
+import { createIdempotently, duplicateWindowStart } from '../lib/idempotency.js';
 
 export const budgetItemsRouter = Router();
-
-const DUPLICATE_WINDOW_MS = 10_000;
 
 budgetItemsRouter.get('/', validate(listBudgetItemsQuerySchema, 'query'), async (req, res) => {
   const { moveId } = req.query;
@@ -32,24 +31,17 @@ budgetItemsRouter.post('/', validate(createBudgetItemSchema), async (req, res) =
   const move = await prisma.move.findUnique({ where: { id: moveId } });
   if (!move) throw new ApiError(404, 'Move not found');
 
-  const recentDuplicate = await prisma.budgetItem.findFirst({
-    where: {
-      moveId,
-      label,
-      category,
-      amount,
-      createdAt: { gte: new Date(Date.now() - DUPLICATE_WINDOW_MS) },
-    },
+  // Idempotent within a short window — see lib/idempotency.js.
+  const { record: item, deduped } = await createIdempotently({
+    dedupeKey: `budget:${moveId}|${label.toLowerCase()}|${category}|${amount}`,
+    findExisting: (tx) =>
+      tx.budgetItem.findFirst({
+        where: { moveId, label, category, amount, createdAt: { gte: duplicateWindowStart() } },
+      }),
+    create: (tx) => tx.budgetItem.create({ data: { moveId, label, category, amount, isPaid } }),
   });
-  if (recentDuplicate) {
-    res.status(200).json({ item: recentDuplicate, summary: await buildSummary(moveId) });
-    return;
-  }
 
-  const item = await prisma.budgetItem.create({
-    data: { moveId, label, category, amount, isPaid },
-  });
-  res.status(201).json({ item, summary: await buildSummary(moveId) });
+  res.status(deduped ? 200 : 201).json({ item, summary: await buildSummary(moveId) });
 });
 
 budgetItemsRouter.patch(

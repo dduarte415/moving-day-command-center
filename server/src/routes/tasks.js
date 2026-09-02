@@ -4,14 +4,9 @@ import { validate } from '../middleware/validate.js';
 import { ApiError } from '../middleware/errorHandler.js';
 import { idParamSchema } from '../schemas/moveSchemas.js';
 import { listTasksQuerySchema, createTaskSchema, updateTaskSchema } from '../schemas/taskSchemas.js';
+import { createIdempotently, duplicateWindowStart } from '../lib/idempotency.js';
 
 export const tasksRouter = Router();
-
-// Window within which an identical (moveId, title, category) create is
-// treated as a duplicate submission rather than a new task — covers the
-// double-click / slow-network-retry case (security req #9) without
-// permanently blocking a legitimately reused title.
-const DUPLICATE_WINDOW_MS = 10_000;
 
 tasksRouter.get('/', validate(listTasksQuerySchema, 'query'), async (req, res) => {
   const move = await prisma.move.findUnique({ where: { id: req.query.moveId } });
@@ -30,23 +25,18 @@ tasksRouter.post('/', validate(createTaskSchema), async (req, res) => {
   const move = await prisma.move.findUnique({ where: { id: moveId } });
   if (!move) throw new ApiError(404, 'Move not found');
 
-  const recentDuplicate = await prisma.task.findFirst({
-    where: {
-      moveId,
-      title,
-      category,
-      createdAt: { gte: new Date(Date.now() - DUPLICATE_WINDOW_MS) },
-    },
+  // Idempotent within a short window — see lib/idempotency.js for why the
+  // check and insert have to share a transaction and lock.
+  const { record: task, deduped } = await createIdempotently({
+    dedupeKey: `task:${moveId}|${title.toLowerCase()}|${category}`,
+    findExisting: (tx) =>
+      tx.task.findFirst({
+        where: { moveId, title, category, createdAt: { gte: duplicateWindowStart() } },
+      }),
+    create: (tx) => tx.task.create({ data: { moveId, title, category, dueDate: dueDate ?? null } }),
   });
-  if (recentDuplicate) {
-    res.status(200).json(recentDuplicate);
-    return;
-  }
 
-  const task = await prisma.task.create({
-    data: { moveId, title, category, dueDate: dueDate ?? null },
-  });
-  res.status(201).json(task);
+  res.status(deduped ? 200 : 201).json(task);
 });
 
 // NOTE: in a multi-user v2, this is where an ownership check belongs —
